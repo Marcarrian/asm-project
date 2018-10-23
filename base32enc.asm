@@ -1,11 +1,12 @@
 SECTION .data			; Section containing initialised data
 	BASE32_TABLE: db "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 	base32 equ 5 		; group into 5 bits
-	offset equ 0		; offset from where we start counting 5 bits
 	
 SECTION .bss			; Section containing uninitialized data
 	input:	resb 16
 	inputLen equ 16
+	bitsNext resb 1		; the amount of bits we need from the next byte
+	offset resb 1		; offset from where we start counting 5 bits
 	output:	resb 16		; output of string encoded in base32
 	
 SECTION .text			; Section containing code
@@ -22,26 +23,19 @@ Read:
 	mov rdx, inputLen	; Pass number of bytes to read
 	syscall
 
-	mov rbp, rax		; Save # of byes from from input for later
-
 	;; Set up the registers for the process buffer step
 	mov rsi, input		; Place address of input buffer into rsi
 	mov rdi, output		; Place address of output into rdi
 	xor ecx, ecx		; Clear line string pointer to 0
 
-	mov r8b, 1		; r8b holds the current turn
+	mov r8b, 0		; r8b holds the current turn
+	mov r9b, 0		; r9b holds the offset
+	mov r10b, 0		; r10 hold the bits we need from the next byte f(turn)
 	
 Scan:
 	xor eax, eax		; Clear eax to 0
 
-	;; Get a character from the input and put it in both rax and rbx
-	mov cl, [rsi+rcx]	; put the char + the offset of the input in cl	
-	mov dl, cl		; copy cl into dl
-
 	;; f(turn) = (turn * 5) % 8. the result gets saved in ah
-	;; if f(turn) = 0 then read next byte
-	;; else if f(turn) < 5 then f(turn) = number of bits we need from next byte
-	;; else for this turn we don't need any bits from the next byte and just take 5
 nextTurn:
 	inc r8b			; increment turn number
 	mov al, r8b		; move the turn number to al
@@ -49,46 +43,66 @@ nextTurn:
 	mul bl			; multiply bl
 	mov bl, 8		; move the divider to cl
 	div bl			; divide cl
+	mov r11, ah		; move the remainder of the equation to r10
 
-	jmp readFiveBits
+	mov al, [rsi+rcx]	; put the char + the offset of the input in al
+T:
 
-readFiveBits:
-	shl cl, offset
-	
-	
-	;; somehow we need to keep track of how many bits are already used in the current byte
+	cmp r9b, 3
+	jle fromCurrent		; if < 3 
+	je currentAndIncrement	; if = 3
+	Jg fromCurrentAndNext	; if > 3
 
+	;; we have enough bits and dont need any from the next byte
+fromCurrent:
+	push cx			; save cl to the stack
+	push dx			; save dl to the stack
+	
+	mov cl, 3		; the shift amount is 3 by default (to get the first 5 bits)
+	sub cl, r9b		; the shift amount minus the offset
+	shr al, cl		; shift right al by the amount in cl
+	;; set the offset: 8 - cl (shifted amount)
+	mov dl, 8		; mov 8 to dl
+	sub dl, cl		;  
+	mov r9b, dl
 
-
-
+	pop dx
+	pop cx
 	
-	and bl, 7h		; keep the last 3 bits
-	shl bl, 2		; shift left to make space for the next 2 bits
-	
-	
-T:	
-	inc ecx			; end of byte reached, increment
-
-	mov al, [rsi+rcx]	; get the next char ('B' to test)
-	mov cl, al		; copy al to cl
-	shr al, 6		; shift right to only keep the last 2 bits
+	jmp nextTurn
 	
 
-	add bl, al		; add the 2 bits in al to bl OUTPUT BL
+currentAndIncrement:
+	shr al, 3
+	;; output al
+	inc rcx
+	jmp nextTurn
 
-	mov bl, cl		; copy cl to bl
-	and bl, 1h		; keep the last bit
+fromCurrentAndNext:
+	shl al, r9b		; we null out the left bits
+	push cx			; save cx to the stack
+
+	;; shift right so we just have enough space for the bits from the next byte
+	mov dl, 8		; 8
+	sub dl, r9b		; - offset
+	sub dl, r10b		; - f(turn)
 	
-	shl cl, 1		; xx11 1101 -> shift 1 and keep the 5 bits OUTPUT CL
+	shr al, dl		; shift right by 8 - offset - f(turn)
+	mov cl, al		; save the bits from the current byte to cl
+
+	;; increment and get the first bits from the next byte
+	inc rcx			; next byte
+	mov al, [rsi+rcx]	; mov the next byte to al
+
+	;; 8 - f(turn)
+	mov dl, 8		; mov 8 to dl
+	sub dl, r10b		; - f(turn)
+	shr al, dl		; shift right by the amount of bits
+	mov r9b, r10b		; move f(turn) to the offset
+
+	pop cx			; restore cx from the stack
+	jmp nextTurn
 	
-	inc rcx			; end of byte reached, increment
-	mov al, [rsi+rcx]	; move the next byte into al
-	;; we kept one bit from before in bl we only need the first 4 bits from al xxxx 1111
-	mov cl, al		; copy al to cl
-	
-	shr al, 3		; shift 4 bits to the right
-	xor al, 1		; make the last one a zero
-	add al, bl		; add the bit from beore to al
 	
 	mov cl, [BASE32_TABLE]	
 	mov [output], ebx
