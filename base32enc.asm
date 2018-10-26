@@ -23,101 +23,141 @@ Read:
 	mov rdx, inputLen	; Pass number of bytes to read
 	syscall
 
-	;; Set up the registers for the process buffer step
-	mov rsi, input		; Place address of input buffer into rsi
-	mov rdi, output		; Place address of output into rdi
-	xor ecx, ecx		; Clear line string pointer to 0
+T0:				; check the content of  eax here
 
-	mov r8b, 0		; r8b holds the current turn
+	;; Set up the registers for the process buffer step
+	xor ecx, ecx		; Clear line string pointer to 0
+	
+	mov dil, 0		; sil holds the current turn number
 	mov r9b, 0		; r9b holds the offset
-	mov r10b, 0		; r10 hold the bits we need from the next byte f(turn)
+	mov bl, 0		; bl holds the return of f(turn)
 	
 Scan:
 	xor eax, eax		; Clear eax to 0
 
 	;; f(turn) = (turn * 5) % 8. the result gets saved in ah
+	;; if f(turn) < 5 then f(turn) = amount of bits from next byte
 nextTurn:
-	inc r8b			; increment turn number
-	mov al, r8b		; move the turn number to al
+	inc dil			; increment the turn
+	mov al, dil		; move the turn number to al
 	mov bl, 5		; move the multiplier 5 to bl
-	mul bl			; multiply bl
-	mov bl, 8		; move the divider to cl
-	div bl			; divide cl
-	mov r11, ah		; move the remainder of the equation to r10
+	mul bl			; multiply al * bl
+	mov bl, 8		; move the divider to bl
+	div bl			; divide bl
+	mov bl, ah		; move the remainder of the equation to bl
 
+T:	
+	
 	mov al, [rsi+rcx]	; put the char + the offset of the input in al
-T:
 
-	cmp r9b, 3
+	cmp r9b, 3		; compare the offset to 3
 	jle fromCurrent		; if < 3 
 	je currentAndIncrement	; if = 3
 	Jg fromCurrentAndNext	; if > 3
 
 	;; we have enough bits and dont need any from the next byte
 fromCurrent:
-	push cx			; save cl to the stack
-	push dx			; save dl to the stack
-	
+	push cx			; save cx to the stack
+
+T1:
 	mov cl, 3		; the shift amount is 3 by default (to get the first 5 bits)
 	sub cl, r9b		; the shift amount minus the offset
 	shr al, cl		; shift right al by the amount in cl
+	and al, 1Fh		; mask out the first 5 bits
+	
 	;; set the offset: 8 - cl (shifted amount)
 	mov dl, 8		; mov 8 to dl
 	sub dl, cl		;  
 	mov r9b, dl
 
-	pop dx
-	pop cx
+	pop cx			; get cx from the stack
+	call lookupAndSaveToOutput
 	
 	jmp nextTurn
 	
 
 currentAndIncrement:
 	shr al, 3
-	;; output al
+	;; PRINT AL
 	inc rcx
 	jmp nextTurn
 
+	;; we need bits from the current one AND from the next one
 fromCurrentAndNext:
-	shl al, r9b		; we null out the left bits
 	push cx			; save cx to the stack
+	;; i want to null out the left bits by shifting left
+	;; then shift right again by the correct amount to put them in place for the
+	;; next bits from the next byte
+	mov cl, r9b		; move the offset to cl
+	shl al, cl		; shift left by the offset to null out the left bits
 
-	;; shift right so we just have enough space for the bits from the next byte
-	mov dl, 8		; 8
-	sub dl, r9b		; - offset
-	sub dl, r10b		; - f(turn)
+	;; al should be 8
+	mov cl, 8		; mov 8 to cl
+	sub cl, r9b		; - offset
+	shr al, cl		; shift back right by 8 - offset
+	;; al should be 4
+
+T2:
+	pop cx			; get cx from the stack
 	
-	shr al, dl		; shift right by 8 - offset - f(turn)
-	mov cl, al		; save the bits from the current byte to cl
-
 	;; increment and get the first bits from the next byte
-	inc rcx			; next byte
-	mov al, [rsi+rcx]	; mov the next byte to al
 
-	;; 8 - f(turn)
-	mov dl, 8		; mov 8 to dl
-	sub dl, r10b		; - f(turn)
-	shr al, dl		; shift right by the amount of bits
-	mov r9b, r10b		; move f(turn) to the offset
+	;; here we should check the end condition
+	;; if we're done, call lookUpAndSaveToOutput and done
+	
+	
+	inc rcx			; next byte
+	mov dl, [rsi+rcx]	; mov the next byte to al
+
+	push cx			; save cx to the stack
+	
+	;; 8 - f(turn) where f(turn) is the amount of bits we need from this byte
+	mov cl, 8		; mov 8 to cl
+	sub cl, bl		; - f(turn)
+	shr dl, cl		; shift right by the amount of bits
+
+	add al, dl		; add the bits from the previous byte to the bits from the current byte
+	;; al should be 5
+	pop cx			; retore cx from the stack
+	cmp al, 0		; compare al to 0
+	je _done		; if al 0 then end NOT SURE YET
+	call lookupAndSaveToOutput
+	
+	mov r9b, bl		; move f(turn) to the offset
 
 	pop cx			; restore cx from the stack
 	jmp nextTurn
 	
-	
-	mov cl, [BASE32_TABLE]	
-	mov [output], ebx
-	call _printOutput
-	
 	call _done
 	nop
-		
+
+lookupAndSaveToOutput:
+T4:
+	push rcx		; save rcx to the stack
+	push rax
+	push rdi
+	push rsi
+	push rdx
+
+	mov cl, al		; move the offset generated before
+	mov al, [BASE32_TABLE+rcx] ; get the base32 character by the offset in rcx	
+	mov [output], al
+			
 _printOutput:
+T5:	
 	mov rax, 1		; Code for Sys_write call
 	mov rdi, 1		; Standard Output
-	mov rsi, [output]	; Adress of the output
+	mov rsi, output		; Adress of the output
 	mov rdx, 16		; size of the input
-	syscall			; Make kernel call	
+	syscall			; Make kernel call
 
+	pop rdx
+	pop rsi
+	pop rdi
+	pop rax
+	pop rcx
+	ret
+	
 _done:
 	mov rax, 60		; Code for exit
 	xor rdi, rdi		; Return a code of zero
