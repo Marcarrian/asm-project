@@ -22,14 +22,15 @@ Read:
 	mov rsi, input		; Pass offset of the input
 	mov rdx, inputLen	; Pass number of bytes to read
 	syscall
-
-T0:				; check the content of  eax here
-
+	
 	;; Set up the registers for the process buffer step
 	xor ecx, ecx		; Clear line string pointer to 0
 	
 	mov dil, 0		; sil holds the current turn number
 	mov r9b, 0		; r9b holds the offset
+	mov r10, rax		; r10b holds the amount of characters from the input + 1
+	dec r10			; remove the extra byte amount
+	mov r11b, 0		; r11b holds the amount of bytes we have already processed
 	mov bl, 0		; bl holds the return of f(turn)
 	
 Scan:
@@ -46,8 +47,6 @@ nextTurn:
 	div bl			; divide bl
 	mov bl, ah		; move the remainder of the equation to bl
 
-T:	
-	
 	mov al, [rsi+rcx]	; put the char + the offset of the input in al
 
 	cmp r9b, 3		; compare the offset to 3
@@ -59,7 +58,6 @@ T:
 fromCurrent:
 	push cx			; save cx to the stack
 
-T1:
 	mov cl, 3		; the shift amount is 3 by default (to get the first 5 bits)
 	sub cl, r9b		; the shift amount minus the offset
 	shr al, cl		; shift right al by the amount in cl
@@ -94,18 +92,13 @@ fromCurrentAndNext:
 	;; al should be 8
 	mov cl, 8		; mov 8 to cl
 	sub cl, r9b		; - offset
-	shr al, cl		; shift back right by 8 - offset
+	shr al, 3		; shift back right by 8 - offset
+	
 	;; al should be 4
-
-T2:
+	
 	pop cx			; get cx from the stack
-	
-	;; increment and get the first bits from the next byte
 
-	;; here we should check the end condition
-	;; if we're done, call lookUpAndSaveToOutput and done
-	
-	
+	;; inrement and get the first bits from the next byte
 	inc rcx			; next byte
 	mov dl, [rsi+rcx]	; mov the next byte to al
 
@@ -119,32 +112,35 @@ T2:
 	add al, dl		; add the bits from the previous byte to the bits from the current byte
 	;; al should be 5
 	pop cx			; retore cx from the stack
-	cmp al, 0		; compare al to 0
-	je _done		; if al 0 then end NOT SURE YET
+
+	push cx			; save cx to the stack
 	call lookupAndSaveToOutput
+	pop cx			; restore cx
+	
+T:
+	push cx			; save
+	cmp rcx, r10
+	pop cx			; restore
+	je _done
 	
 	mov r9b, bl		; move f(turn) to the offset
-
-	pop cx			; restore cx from the stack
+	
 	jmp nextTurn
 	
 	call _done
 	nop
 
 lookupAndSaveToOutput:
-T4:
 	push rcx		; save rcx to the stack
 	push rax
 	push rdi
 	push rsi
 	push rdx
-
 	mov cl, al		; move the offset generated before
 	mov al, [BASE32_TABLE+rcx] ; get the base32 character by the offset in rcx	
 	mov [output], al
 			
-_printOutput:
-T5:	
+_printOutput:	
 	mov rax, 1		; Code for Sys_write call
 	mov rdi, 1		; Standard Output
 	mov rsi, output		; Adress of the output
