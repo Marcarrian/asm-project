@@ -79,7 +79,9 @@ toCurrentPrintAndIncrement:
 	mov bl, al		; move the base32 char to bl
 	add dl, bl		; add bl to the previous bits in dl
 	push rcx
+	push rsi
 	call printOutput
+	pop rsi
 	pop rcx
 	xor r9, r9		; reset the offset to 0
 	xor dl, dl		; reset dl to 0
