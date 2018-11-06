@@ -16,7 +16,7 @@ ld -o b32d b32d.o || { echo "Object failed to link"; exit 1; }
 
 # run tests
 total=0
-for n in A AA AB bc D13 FOO foxy lalalalalal4242
+for n in A AA AB bc D13 FOO foxy lalalalalal4242 123456789012345678901234567890123456789123456
 do
   points=1
   timeout -s SIGKILL 1s echo -n $n | ./b32e > $n.out || { echo "Your 'b32' command failed to run: $?" ; points=0 ; }

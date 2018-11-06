@@ -1,12 +1,10 @@
 SECTION .data			; Section containing initialised data
 	BASE32_TABLE: db "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-	base32 equ 5 		; group into 5 bits
 	equalSign: db "="
 	
 SECTION .bss			; Section containing uninitialized data
-	input:	resb 256
-	inputLen equ 256
-	bitsNext resb 1		; the amount of bits we need from the next byte
+	input:	resb 4096
+	inputLen equ 4096
 	offset resb 1		; offset from where we start counting 5 bits
 	output:	resb 1		; output of string encoded in base32
 	
@@ -32,7 +30,7 @@ Read:
 	
 	mov dil, 0		; sil holds the current turn number
 	mov r9b, 0		; r9b holds the offset
-	mov r10, rax		; r10 holds the amount of characters from the input + 1
+	mov r10, rax		; r10 holds the amount of characters from the input
 	mov bl, 0		; bl holds the return of f(turn)
 	mov r8, 0		; amount of output characters
 	
