@@ -1,0 +1,13 @@
+.idea/
+
+base32enc
+base32enc.o
+base32dec
+base32dec.o
+
+b32e*
+b32d*
+
+*.out
+*.want
+*.delta
