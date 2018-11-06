@@ -1,1 +1,6 @@
-Binary files IFBEGRCFIZDQ====.want and IFBEGRCFIZDQ====.out differ
+1c1
+< ABCDEFG
+\ No newline at end of file
+---
+> ABCDEŒ#F0
+\ No newline at end of file

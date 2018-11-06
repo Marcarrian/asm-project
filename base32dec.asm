@@ -26,14 +26,30 @@ prepareRegisters:
 	mov dl, 0		; is the current encoded character to put out
 	mov r10, rax		; move the amount of characters from the input to r10
 	mov r8, 0		; is the counter for the loop in the base32 table
-	mov r9, 0		; holds the offset. Where we place the bits in the current byte
+	mov r9, 0		; holds the offset
 	mov r11, 0		; holds the amount of equal signs
-	mov r12, 0		; holds the bits we need to finish the current byte
+	mov r12, 0		; holds the turn number
+	mov r13, 0		; holds the result of f(turn)
 	mov rdx, 0		; holds the decoded characters
 	
 	xor rcx, rcx		; clear rcx to 0
+
+	;; f(turn) = (turn * 5) % 8. the result gets saved in ah
+	;; tells us how many bits we need from the next byte
+nextTurn:
+	inc r12			; increment the turn number
+	mov al, r12b		; move the turn number to al
+	mov bl, 5		; move the multiplier 5 to bl
+	mul bl			; multiply al * bl
+	mov bl, 8		; move the divider 8 to bl
+	div bl			; divide by bl
+	mov bl, ah		; move the result of the equation f(turn) to bl
+	mov r13b, bl
 	
 readOneCharacter:
+T:
+	cmp rcx, r10	       ; compare the input pointer offset to the inital input size
+	je _done
 	mov al, [rsi+rcx]	; mov the character offset by rcx to al
 
 convertToBase32Index:
@@ -41,7 +57,7 @@ convertToBase32Index:
 	;; shift left by one here to insert the 0 bit
 	;; im not quite sure how im gonna handle the output so ill leave this open for now
 	cmp al, 61		; check if we got an equal sign
-	je increaseAmountOfEqualSigns
+	je _done
 	
 lookupInBase32Table:
 	mov bl, [BASE32_TABLE+r8] ; move on character from the base32 table to bl
@@ -55,64 +71,85 @@ moveCharToOutput:
 	xor r8, r8		; reset the loop counter to zero
 	cmp r9, 3		; compares the offset to 3
 	je toCurrentPrintAndIncrement
-	jle toCurrentIncrement
-	jge toCurrentPrintToNext
+	jl toCurrentIncrement
+	jg toCurrentPrintToNext
 
 
 toCurrentPrintAndIncrement:
+	mov bl, al		; move the base32 char to bl
+	add dl, bl		; add bl to the previous bits in dl
+	push rcx
+	call printOutput
+	pop rcx
+	xor r9, r9		; reset the offset to 0
+	xor dl, dl		; reset dl to 0
+	inc rcx			; increment the offset input pointer
+	jmp nextTurn
 
 toCurrentIncrement:
-T1:	
-	push rcx       ; save rcx
-	mov bl, al	; move the base32 char to bl
-	;; calculate the shift amount
-	mov cl, 3		; move 3 to cl
-	sub cl, r9b		; 3 - offset
-	shl bl, cl		; set the bits in the correct offset position
-	add dl, bl		; add the 5 bits in bl to dl
+	push rcx		; save rcx
+	mov bl, al		; move the base32 char to bl
+	cmp r13, 5		; compare f(turn) to 5
+	jge get5Bits
+	jl getFTurnBits
 
-	;; calculate the new offset: 8 - shifted amount
-	mov bl, 8		; move 8 to bl
-	sub bl, cl		; subtract the shifted amount from bl
-	mov r9b, bl		; update the offset
+get5Bits:
+	;; position the 5 bits according to the offset
+	shl bl, 3		; get the 5 bits to the front
+	mov cl, r9b		; move the offset to cl
+	shr bl, cl		; shift right by cl
 
-	;; set the amount of bits we need from the next char: 8 - offset
-	mov bl, 8		; move 8 to bl
-	sub bl, r9b		; subtract the offset from 8
-	mov r12b, bl		; update the bits we need from the next char
-	
+	add dl, bl		; add the bits to dl
+	add cl, 5		; add 5 to cl
+	mov r9b, cl		; update the offset
 	pop rcx			; restore rcx
-	inc rcx			; increment the offset counter
-	jmp readOneCharacter	; read the next character
+	inc rcx			; increment the input pointer offset
+	jmp nextTurn
+
+getFTurnBits:
+	;; get f(turn) amount of bits to the front: 8 - r13b
+	mov cl, 8		; move 8 to cl
+	sub cl, r13b		; subtract r13b from cl
+	shl bl, cl		; shift left bl by cl
+
+	;; position the bits according to the offset
+	mov cl, r9b		; move the offset to cl
+	shr bl, cl		; shift right bl by cl
+
+	add cl, r13b		; calculate the new offset
+	mov r9b, r13b		; update the offset
+	pop rcx			; restore rcx
+	inc rcx			; increment the input pointer offset
+	jmp nextTurn
 
 toCurrentPrintToNext:
 	push rcx		; save rcx
-	mov bl, al		; move the base32 char to bl
+	mov bl, al 		; move the base32 char to bl
 
-	;; calculate the shift amount: 5 - bits needed (r12b)
-	mov cl, 5		; mov 5 to cl
-	sub cl, r12b		; subtract the bits needed from cl
-
-	shr bl, cl		; shift the unneeded bits away
-	add dl, bl		; add the bits in to the previous bits in dl
-	;; update the new bits needed: 5 - shifted amount
-	mov bl, 5		; move 5 to bl
-	sub bl, cl		; subtract the shifted amount from bl
-	mov r12b, bl		; update the bits needed
+	;; save the bits, which we're gonna use in the next byte
+	mov cl, 8
+	sub cl, r13b
+	shl al, cl
+	mov r9b, r13b		; update the offset
 	
-	jmp printOutput
-
-	xor r9b, r9b		; reset the offset to zero
+	;; get 5 - f(turn) bits
+	mov cl, r13b		; move f(turn) to cl
+	shr bl, cl		; shift right by cl to get 5 - f(turn) bits
+	
+	add dl, bl		; add the bits in bl to dl
+	push rsi
+	push rax
+	call printOutput
+	pop rax
+	pop rsi
 	pop rcx			; restore rcx
 
-
+	mov dl, al		; move the leftover bits to dl
+	inc rcx			; increment the offset pointer countery
 	
-	cmp rcx, r10		; compare the pointer offset to the initial input length
-	je _done		; end for now TODO
-	jmp readOneCharacter	; read the next character
+	jmp nextTurn
 
 increaseAmountOfEqualSigns:
-T:	
 	inc r11			; increases amount of equal signs by 1
 	inc rcx			; increment rcx to then get the next char from the input
 	cmp rcx, r10		; compare the pointer offset to the initial input length
@@ -127,6 +164,7 @@ moveEqualSignsToOutput:
 	shr rdx, 8		; shift right 8 to remove the unused last 8 bits
 	
 	mov [output], rdx
+	
 printOutput:
 	mov [output], rdx
 	mov rax, 1		; Code for Sys_write call
@@ -134,7 +172,7 @@ printOutput:
 	mov rsi, output		; Address of the output
 	mov rdx, 1		; Size of the output
 	syscall
-
+	ret
 	
 _done:
 	mov rax, 60
