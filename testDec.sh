@@ -16,7 +16,7 @@ ld -o b32d b32d.o || { echo "Object failed to link"; exit 1; }
 
 # run tests
 total=0
-for n in IE====== IFBA==== IFAQ==== IFBEGRCF IFBEGRCFIZDQ==== M5UGS2TL N5YHS4LKNN4HS=== GM2EM2TLNRWWIZCBIFAWCYLBME======
+for n in IE====== IFBA==== IFAQ==== IFBEGRCF IFBEGRCFIZDQ==== ONTGUZCEIR3DGNDGMZLVOV3G ONTGUZCEIR3DGNDGMZLVOV3GMRSHM5TBOFZXGMTW GM2EM2TLNRWWIZCBIFAWCYLBME======
 do
   points=1
   timeout -s SIGKILL 1s echo -n $n | ./b32d > $n.out || { echo "Your 'b32' command failed to run: $?" ; points=0 ; }
