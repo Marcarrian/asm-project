@@ -4,7 +4,7 @@ SECTION .data
 SECTION .bss
 	input: resb 4096
 	inputLen: resb 4096
-	output: resb 4096	
+	output: resb 1	
 
 SECTION .text
 	global _start
@@ -35,7 +35,7 @@ prepareRegisters:
 	xor rcx, rcx		; clear rcx to 0
 
 	;; f(turn) = (turn * 5) % 8. the result gets saved in ah
-	;; tells us how many bits we need from the next byte
+	;; tells us how many bits we need from the next 5 bits
 nextTurn:
 	inc r12			; increment the turn number
 	mov al, r12b		; move the turn number to al
@@ -44,20 +44,16 @@ nextTurn:
 	mov bl, 8		; move the divider 8 to bl
 	div bl			; divide by bl
 	mov bl, ah		; move the result of the equation f(turn) to bl
-	mov r13b, bl
+	mov r13b, bl		; move f(turn) to r13b
 	
 readOneCharacter:
-T:
-	cmp rcx, r10	       ; compare the input pointer offset to the inital input size
-	je _done
+	cmp rcx, r10		; compare the input pointer offset to the inital input size
+	je _done		; end if we read all characters
 	mov al, [rsi+rcx]	; mov the character offset by rcx to al
 
 convertToBase32Index:
-	;; compare al to the ascii code 61 for '='
-	;; shift left by one here to insert the 0 bit
-	;; im not quite sure how im gonna handle the output so ill leave this open for now
-	cmp al, 61		; check if we got an equal sign
-	je _done
+	cmp al, 61		; cmp al to the ascii code of the equal sign
+	je _done		; end if we got an equal sign
 	
 lookupInBase32Table:
 	mov bl, [BASE32_TABLE+r8] ; move on character from the base32 table to bl
@@ -74,12 +70,11 @@ moveCharToOutput:
 	jl toCurrentIncrement
 	jg toCurrentPrintToNext
 
-
 toCurrentPrintAndIncrement:
 	mov bl, al		; move the base32 char to bl
 	add dl, bl		; add bl to the previous bits in dl
 	push rcx
-	push rsi
+	push rsiy
 	call printOutput
 	pop rsi
 	pop rcx
@@ -150,22 +145,6 @@ toCurrentPrintToNext:
 	inc rcx			; increment the offset pointer countery
 	
 	jmp nextTurn
-
-increaseAmountOfEqualSigns:
-	inc r11			; increases amount of equal signs by 1
-	inc rcx			; increment rcx to then get the next char from the input
-	cmp rcx, r10		; compare the pointer offset to the initial input length
-	je moveEqualSignsToOutput ; move the equal signs to the output
-	jmp readOneCharacter
-	
-	
-moveEqualSignsToOutput:
-	shr rdx, 5		; shift right 5 back
-	mov rcx, r11		; move the amount of equal signs to rcx
-	shl rdx, cl		; shift left by the amount of equal signs
-	shr rdx, 8		; shift right 8 to remove the unused last 8 bits
-	
-	mov [output], rdx
 	
 printOutput:
 	mov [output], rdx
