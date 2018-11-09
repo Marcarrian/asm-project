@@ -1,6 +1,7 @@
 SECTION .data			; Section containing initialised data
 	BASE32_TABLE: db "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 	equalSign: db "="
+	newLine: db 10
 	
 SECTION .bss			; Section containing uninitialized data
 	input:	resb 4096
@@ -22,21 +23,20 @@ Read:
 	mov rdx, inputLen	; Pass number of bytes to read
 	syscall
 
-	cmp eax, 0
-	je _done
+	cmp eax, 0		; compare eax to 0 (CTRL-D) pressed
+	je _done		; if eax is zero, end the program
 	
-	;; Set up the registers for the process buffer step
-	xor ecx, ecx		; Clear line string pointer to 0y
-	
+	;; Set up the registers
 	mov dil, 0		; sil holds the current turn number
-	mov r9b, 0		; r9b holds the offset
+	mov r8, 0		; r8 holds the amount of output characters 
+	mov r9, 0		; r9 holds the offset
 	mov r10, rax		; r10 holds the amount of characters from the input
 	mov bl, 0		; bl holds the return of f(turn)
-	mov r8, 0		; amount of output characters
+
+	xor rax, rax		; Clear rax to 0
+	xor rcx, rcx		; Clear line string pointer to 0
 	
 Scan:
-	xor eax, eax		; Clear eax to 0
-
 	;; f(turn) = (turn * 5) % 8. the result gets saved in ah
 	;; if f(turn) < 5 then f(turn) = amount of bits from next byte
 nextTurn:
@@ -74,42 +74,40 @@ fromCurrent:
 	
 	jmp nextTurn
 	
-
+	;; the offset is exactly 3 meaning we can get the last 5 bits from the curent byte then increment to point to the next byte of input
 currentAndIncrement:
 	and al, 1Fh		; get the last 5 bits
 	mov r9, 0		; set the offset back to 0
-	push rcx
-	call lookupAndSaveToOutput
-	pop rcx
+	push rcx		; save rcx
+	call lookupAndSaveToOutput ; look up the base32 character and save it to the output
+	pop rcx			; restore rcx
 
-	inc rcx
-	cmp rcx, r10		; test end condition
-	je _printEqualSigns	;
-	
-	jmp nextTurn
+	inc rcx			; increment the line string pointer
+	cmp rcx, r10		; compare the line string pointer to the input size
+	je _printEqualSigns	; if rcx and r10 are equal then print the trailing equal signs
+	jmp nextTurn		; go to the next turn
 
 	;; we need bits from the current one AND from the next one
 fromCurrentAndNext:
 	push cx			; save cx to the stack
-	;; i want to null out the left bits by shifting left
+	;; Null out the left bits by shifting left
 	;; then shift right again by the correct amount to put them in place for the
 	;; next bits from the next byte
 	mov cl, r9b		; move the offset to cl
 	shl al, cl		; shift left by the offset to null out the left bits
 	shr al, 3		; shift back right by 3
 	
-	pop cx			; get cx from the stack
-
-	cmp rcx, r10
-	je _lookupAndPrintEqualSigns	
+	pop cx			; restore cx
 	
-	;; inrement and get the first bits from the next byte
-	inc rcx			; next byte
-	
-	;; check the end condition here already?
+	inc rcx			; increment the line pointer offset
+	push rcx                ; save rcx
+	cmp rcx, r10		; compare the line pointer offset to the input size
+	je _lookupAndPrintEqualSigns ; lookup the base32 char and print the equal signs
+	pop rcx			     ; restore rcx
 	
 	mov dl, [rsi+rcx]	; mov the next byte to dl
-
+	mov r9b, bl		; move f(turn) to the offset
+	
 	push cx			; save cx to the stack
 	
 	;; 8 - f(turn) where f(turn) is the amount of bits we need from this byte
@@ -117,21 +115,15 @@ fromCurrentAndNext:
 	sub cl, bl		; - f(turn)
 	shr dl, cl		; shift right by the amount of bits
 
-	add al, dl		; add the bits from the previous byte to the bits from the current byte
-	;; al should be 5
+	add al, dl		; add the bits from the previous byte to the current
 	pop cx			; retore cx from the stack
 
 	push cx			; save cx to the stack
 	call lookupAndSaveToOutput
 	pop cx			; restore cx
 	
-	push cx			; save
-	cmp rcx, r10		; compare the input counter to the initial input length
-	pop cx			; restore
-	je _printEqualSigns	; if the input counter is equal to the initial length we're done
-	;; aka we gotta print the equal signs first
-	
-	mov r9b, bl		; move f(turn) to the offset
+	cmp rcx, r10		; compare the line pointer offset to the input size
+	je _printEqualSigns	; print the equal signs
 	
 	jmp nextTurn
 	nop
@@ -181,7 +173,7 @@ _printEqualSigns:
 	sub rcx, rax
 loop:
 	cmp rcx, 0
-	je _done
+	je printNewLine
 
 	push rcx
 	push rax
@@ -204,7 +196,14 @@ _printOneEqualSign:
 	mov rdx, 1		; output length of 1
 	syscall
 	ret
-	
+
+printNewLine:
+	mov rax, 1
+	mov rdi, 1
+	mov rsi, newLine
+	mov rdx, 1
+	syscall
+
 _done:
 	mov rax, 60		; Code for exit
 	xor rdi, rdi		; Return a code of zero

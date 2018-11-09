@@ -16,12 +16,12 @@ ld -o b32d b32d.o || { echo "Object failed to link"; exit 1; }
 
 # run tests
 total=0
-for n in IE====== IFBA==== IFAQ==== IFBEGRCF IFBEGRCFIZDQ==== ONTGUZCEIR3DGNDGMZLVOV3G ONTGUZCEIR3DGNDGMZLVOV3GMRSHM5TBOFZXGMTW GM2EM2TLNRWWIZCBIFAWCYLBME======
+for n in IE====== IFAQ==== IFBEGRCF IFBEGRCFIZDQ==== ONTGUZCEIR3DGNDGMZLVOV3G ONTGUZCEIR3DGNDGMZLVOV3GMRSHM5TBOFZXGMTW GM2EM2TLNRWWIZCBIFAWCYLBME====== NRSG2OCEHEYDINDSIZDEM5TWMFQWGY2EGJVGWZT2OVUWYZTEONQXGZDWONUXK43ENBTGM43ONFSHGZTOMZZWMZDTMZVHGZDLMZZWI23EONTHGZDLNJTGI43TMRVWM23ENZTGW43EMZVXGZDGNRSHGZTOMRTGY43LMRTHG23EONSGY23KNNZWI2TGNRVWI43KMZZWWZDGNI======
 do
   points=1
-  timeout -s SIGKILL 1s echo -n $n | ./b32d > $n.out || { echo "Your 'b32' command failed to run: $?" ; points=0 ; }
-  echo -n $n | base32 -d > $n.want || { echo "System 'base32' failed to run"; exit 1; }
-  diff -w $n.want $n.out > $n.delta || { echo "Decode failed on $n" ; points=0; }
+  timeout -s SIGKILL 1s echo -n $n | ./b32d > tests/$n.out || { echo "Your 'b32' command failed to run: $?" ; points=0 ; }
+  echo -n $n | base32 -d > tests/$n.want || { echo "System 'base32' failed to run"; exit 1; }
+  diff -w tests/$n.want tests/$n.out > tests/$n.delta || { echo "Decode failed on $n" ; points=0; }
   if test $points = 1
   then
     echo "Test $n passed"
