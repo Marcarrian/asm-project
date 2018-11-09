@@ -74,7 +74,7 @@ toCurrentPrintAndIncrement:
 	mov bl, al		; move the base32 char to bl
 	add dl, bl		; add bl to the previous bits in dl
 	push rcx
-	push rsiy
+	push rsi
 	call printOutput
 	pop rsi
 	pop rcx
