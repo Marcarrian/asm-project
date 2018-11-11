@@ -6,7 +6,6 @@ SECTION .data			; Section containing initialised data
 SECTION .bss			; Section containing uninitialized data
 	input:	resb 4096
 	inputLen equ 4096
-	offset resb 1		; offset from where we start counting 5 bits
 	output:	resb 1		; output of string encoded in base32
 	
 SECTION .text			; Section containing code
@@ -15,28 +14,45 @@ SECTION .text			; Section containing code
 _start:
 	nop
 
-	;; Read a buffer of the input
+setupRead:
+	xor rax, rax		; rax contains the current input size
+	xor r10, r10		; r10 contains the final input size
+	
 Read:
 	mov rax, 0		; Code for Sys_write call
 	mov rdi, 0		; Standard Input
 	mov rsi, input		; Pass offset of the input
 	mov rdx, inputLen	; Pass number of bytes to read
+	add rsi, r10		; offset the pointer by the amount of characters read before Enter
 	syscall
 
+	sub rsi, r10		; move the input pointer back to the start of the input
+
+	cmp r10, 0		; compare the 
+	jne checkShouldReadAnotherLine
+	
 	cmp eax, 0		; compare eax to 0 (CTRL-D) pressed
 	je _done		; if eax is zero, end the program
+
+
+checkShouldReadAnotherLine:
+	add rax, r10		 ; add the input size to rax
+	mov r10, rax		 ; save the input size in r10 cause rax will get overridden
+	cmp byte [rsi+rax-1], 10 ; compare the last input character to new line
+	jne setupRegisters	; if the last character of the input is not a newline then encode
+
+	dec r10			; decrement r10 to override the new line
+	jmp Read
 	
-	;; Set up the registers
-	mov dil, 0		; sil holds the current turn number
+setupRegisters:
+	mov dil, 0		; dil holds the current turn number
 	mov r8, 0		; r8 holds the amount of output characters 
 	mov r9, 0		; r9 holds the offset
-	mov r10, rax		; r10 holds the amount of characters from the input
 	mov bl, 0		; bl holds the return of f(turn)
 
 	xor rax, rax		; Clear rax to 0
 	xor rcx, rcx		; Clear line string pointer to 0
 	
-Scan:
 	;; f(turn) = (turn * 5) % 8. the result gets saved in ah
 	;; if f(turn) < 5 then f(turn) = amount of bits from next byte
 nextTurn:
