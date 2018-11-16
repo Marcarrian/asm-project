@@ -1,5 +1,6 @@
 SECTION .data
 	BASE32_TABLE: db "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+	invalidInputText: db "Invalid Input"
 	
 SECTION .bss
 	input: resb 4096
@@ -11,7 +12,7 @@ SECTION .text
 	
 _start:
 	nop
-
+	
 Read:
 	mov rax, 0 		; Code for Sys_write call
 	mov rdi, 0		; Standard Input
@@ -60,6 +61,8 @@ lookupInBase32Table:
 	cmp al, bl		  ; compare the input character to the char in the base32 table
 	je moveCharToOutput	  ; move the char to the output
 	inc r8			  ; increment the counter for the lookup
+	cmp r8, 32		  ; compare the base32 index to 32
+	je invalidInput		  ; if the base32 index reaches 32 there's a invalid char in the input
 	jmp lookupInBase32Table	  ; back to looping over the table
 	
 moveCharToOutput:
@@ -159,4 +162,15 @@ _done:
 	mov rax, 60
 	xor rdi, rdi
 	syscall
-	
+
+invalidInput:
+	mov rax, 1		; Code for Sys_write call
+	mov rdi, 1		; Standard Output
+	mov rsi, invalidInputText ; Address of the invalid input message
+	mov rdx, 13		  ; Size of the output
+	syscall
+
+endWithError:
+	mov rax, 60
+	mov rdi, 1
+	syscall

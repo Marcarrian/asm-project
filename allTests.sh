@@ -1,0 +1,2 @@
+./testEnc.sh
+./testDec.sh

@@ -14,6 +14,7 @@ ld -o b32e b32e.o || { echo "Object failed to link"; exit 1; }
 nasm -f elf64 -g -F dwarf base32dec.asm -o b32d.o || { echo "Assembly code base32dec.asm failed to compile"; exit 1; }
 ld -o b32d b32d.o || { echo "Object failed to link"; exit 1; }
 
+echo "-----Encoding to Base32 Tests------"
 # run tests
 total=0
 for n in A OlYx OlYxd OlYxdd33f 7902jf30f8 7902jf30f8ddvv jk394jsfDFasJ33Jdddfc WWWWWWWWWWWWWWWWWWWWWWWWWW
@@ -30,4 +31,5 @@ do
 done
 # Output grade
 echo "Final grade: $total/8"
+echo "----------------------------------"
 exit 0
