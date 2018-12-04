@@ -12,23 +12,40 @@ SECTION .text
 	
 _start:
 	nop
+
+setupRead:
+	xor rax, rax		; rax contains the current input size
+	xor r10, r10		; r10 contains the final input size
 	
 Read:
 	mov rax, 0 		; Code for Sys_write call
 	mov rdi, 0		; Standard Input
 	mov rsi, input		; Pass offset to the input
 	mov rdx, inputLen	; Pass number of bytes to read
+	add rsi, r10		; offset the pointer by the amount of characters read before Enter
 	syscall
+
+	sub rsi, r10		; move the input pointer back to the start of the input
+
+	cmp r10, 0		
+	jne checkShouldReadAnotherLine
 
 	cmp eax, 0		; check if the input is ctrl-d
 	je _done		; then end the program
 
+checkShouldReadAnotherLine:
+	add rax, r10		; add the input size to rax
+	mov r10, rax		; save the input size in r10 cause rax will get overridden
+	cmp byte [rsi+rax-1], 10 ; compare the last character to new line
+	jne prepareRegisters	 ; if the last character if the input is not a new line then decode
+
+	dec r10			; decrement r10 to override the new line
+	jmp Read		; read more after the new line
+
 prepareRegisters:
 	mov dl, 0		; is the current encoded character to put out
-	mov r10, rax		; move the amount of characters from the input to r10
 	mov r8, 0		; is the counter for the loop in the base32 table
 	mov r9, 0		; holds the offset
-	mov r11, 0		; holds the amount of equal signs
 	mov r12, 0		; holds the turn number
 	mov r13, 0		; holds the result of f(turn)
 	mov rdx, 0		; holds the decoded characters
